@@ -14,14 +14,29 @@
  * LICENSE file for more details.
  */
 
+/**
+ * 2021-01-06
+ * mlo
+ *
+ * startet to work with railiuno and discovered some pitfalls.
+ * Aim was to implement it for ESP8266 or ESP32
+ * more changes may follow
+ */
+
 // #include <can.h>
 #include "Railuino.h"
 // #include "canbus/canbus.c"
+#if defined(__ESP__)
+#error Can-Bus not supported for ESP-Boards
+#else
 #include "can/mcp2515.h"
 #include "can/mcp2515.c"
+#endif
 
 #if defined(__LEONARDO__)
 #include "ir/infrared2.c"
+#elif defined(__ESP__)
+#include "ir/infrared.c"
 #else
 #include "ir/infrared.c"
 #endif
@@ -53,7 +68,7 @@ int parseHex(String &s, int start, int end, boolean *ok) {
         } else if (c >= 'A' && c <= 'F') {
             value = 16 * value + 10 + c - 'A';
         } else {
-        	ok = false;
+        	*ok = false;
             return -1;
         }
     }
@@ -698,28 +713,42 @@ boolean TrackController::getVersion(byte *high, byte *low) {
 #define ADDR_LOCO_2     0b11001
 #define ADDR_LOCO_3     0b11011
 #define ADDR_LOCO_4     0b11100
+
 #define ADDR_TURNOUT_A  0b01110
 #define ADDR_TURNOUT_B  0b01111
 
 #define CMD_FUNCTION  0b1010000
-#define CMD_FASTER    0b0010000
-#define CMD_SLOWER    0b0010001
-#define CMD_DIRECTION 0b0001101
+
 #define CMD_POWER_OFF 0b0001100
 #define CMD_POWER_ON  0b0001110
 
 static word locoBits[] = { ADDR_LOCO_1, ADDR_LOCO_2, ADDR_LOCO_3, ADDR_LOCO_4 };
 
+	/**
+	 * Creates a new TrackControllerInfrared and does some
+	 * initializing. Assumes the IR LED is on pin 9.
+	 *
+	 * 2021-01-06 by mlo: disabled the initializing part because
+	 * some of the register arithmetic stuff in the IR-code made
+	 * the Serial console unavailable if run before 'Serial.begin();'
+	 */
 TrackControllerInfrared::TrackControllerInfrared() {
-	mPower = true;
-	
-	for (int i = 0; i < 2; i++) {
-		for (int j = 1; j <= 4; j++) {
-			toggleLocoDirection(j);
-		}
-	}
-	
-	setPower(false);
+  mPower = true;
+}
+
+    /**
+     * Initialization code moved here 
+     */
+void TrackControllerInfrared::start() {
+  setPower(false);
+}
+
+    /**
+     * Added for testing
+     */
+boolean TrackControllerInfrared::sendRaw(unsigned long data, int nbits) {
+  sendRC5(data,nbits,false);
+  return true;
 }
 
 boolean TrackControllerInfrared::sendMessage(word address, word command) {
@@ -772,6 +801,13 @@ boolean TrackControllerInfrared::toggleLocoFunction(int loco, int function) {
 	}
 	
 	return false;
+}
+
+/**
+ * added to report back the current state of mPower
+ */
+boolean TrackControllerInfrared::getPower() {
+  return mPower;
 }
 
 boolean TrackControllerInfrared::setPower(boolean power) {

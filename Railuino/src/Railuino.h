@@ -33,6 +33,9 @@
 #elif defined(__AVR_ATmega2560__)
 #define __MEGA__ 1
 #define __BOARD__ "Arduino Mega"
+#elif defined(ESP8266)
+#define __ESP__ 1
+#define __BOARD__ "NodeMCU ESP8266"
 #else
 #error Unsupported board. Please adjust library.
 #endif
@@ -464,8 +467,24 @@ class TrackControllerInfrared {
 	/**
 	 * Creates a new TrackControllerInfrared and does some
 	 * initializing. Assumes the IR LED is on pin 9.
+	 *
+	 * 2021-01-06 by mlo: disabled the initializing part because
+	 * some of the register arithmetic stuff in the IR-code made
+	 * the Serial console unavailable if run before 'Serial.begin();'
+	 *
+	 * see https://github.com/MBuratto/railuino/issues/7
 	 */
     TrackControllerInfrared();
+
+    /**
+     * Initialization code moved here 
+     */
+    void start();
+
+    /**
+     * Added for testing
+     */
+    boolean TrackControllerInfrared::sendRaw(unsigned long data, int nbits);
 
     /**
      * Sends a message consisting of address and command (in the
@@ -520,6 +539,10 @@ class TrackControllerInfrared {
      */
     boolean setTurnout(int turnout, boolean straight);
 
+    /**
+     * 2021-01-06 by mlo: added to report back the current state of mPower
+     */
+    boolean getPower();
 };
 
 // ===================================================================
