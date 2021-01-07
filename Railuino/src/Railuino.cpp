@@ -719,6 +719,10 @@ boolean TrackController::getVersion(byte *high, byte *low) {
 
 #define CMD_FUNCTION  0b1010000
 
+#define CMD_FASTER    0b0010000
+#define CMD_SLOWER    0b0010001
+#define CMD_DIRECTION 0b0001101
+
 #define CMD_POWER_OFF 0b0001100
 #define CMD_POWER_ON  0b0001110
 
@@ -740,7 +744,13 @@ TrackControllerInfrared::TrackControllerInfrared() {
      * Initialization code moved here 
      */
 void TrackControllerInfrared::start() {
-  setPower(false);
+  
+  for (int i = 0; i < 2; i++) {
+    for (int j = 1; j <= 4; j++) {
+      toggleLocoDirection(j);
+    }
+  }
+  setPower(false);  
 }
 
     /**
