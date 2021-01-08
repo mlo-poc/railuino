@@ -2,7 +2,7 @@
  * Railuino - Hacking your Märklin
  *
  * Copyright (C) 2012 Joerg Pleumann
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
@@ -36,7 +36,7 @@
 #if defined(__LEONARDO__)
 #include "ir/infrared2.c"
 #elif defined(__ESP__)
-#include "ir/infrared.c"
+#include "ir/IRSend.c"
 #else
 #include "ir/infrared.c"
 #endif
@@ -321,7 +321,7 @@ boolean TrackController::sendMessage(TrackMessage &message) {
 	can_t can;
 
 	message.hash = mHash;
-	
+
 	can.id = ((uint32_t)message.command) << 17 | (uint32_t)message.hash;
 	can.flags.extended = 1;
 	can.flags.rtr = 0;
@@ -335,7 +335,7 @@ boolean TrackController::sendMessage(TrackMessage &message) {
 	    Serial.print("==> ");
 	    Serial.println(message);
 	}
-	
+
 	return can_send_message(&can);
 }
 
@@ -353,7 +353,7 @@ boolean TrackController::receiveMessage(TrackMessage &message) {
 //	if (result) {
         /*
 		if (mDebug) {
-			
+
 			Serial.print("ID :");
 			Serial.println(can.id, HEX);
 			Serial.print("EXIDE:");
@@ -365,7 +365,7 @@ boolean TrackController::receiveMessage(TrackMessage &message) {
 			for (int i = 0; i < can.length; i++) {
 				printHex(can.data[i]);
 			}
-			
+
 			Serial.println();
 		}
         */
@@ -416,7 +416,7 @@ boolean TrackController::exchangeMessage(TrackMessage &out, TrackMessage &in, wo
 	if (mDebug) {
 		Serial.println(F("!?! Receive timeout"));
 	}
-	
+
 	return false;
 }
 
@@ -460,7 +460,7 @@ boolean TrackController::setLocoDirection(word address, byte direction) {
 	message.data[4] = 0x03;
 
 	exchangeMessage(message, message, 1000);
-	
+
 	message.clear();
 	message.command = 0x05;
 	message.length = 0x05;
@@ -472,7 +472,7 @@ boolean TrackController::setLocoDirection(word address, byte direction) {
 }
 
 boolean TrackController::toggleLocoDirection(word address) {
-    return setLocoDirection(address, DIR_CHANGE);	
+    return setLocoDirection(address, DIR_CHANGE);
 }
 
 boolean TrackController::setLocoSpeed(word address, word speed) {
@@ -491,31 +491,31 @@ boolean TrackController::setLocoSpeed(word address, word speed) {
 
 boolean TrackController::accelerateLoco(word address) {
 	word speed;
-	
+
 	if (getLocoSpeed(address, &speed)) {
 		speed += 77;
 		if (speed > 1023) {
 			speed = 1023;
 		}
-		
+
 	    return setLocoSpeed(address, speed);
 	}
-	
+
 	return false;
 }
 
 boolean TrackController::decelerateLoco(word address) {
 	word speed;
-	
+
 	if (getLocoSpeed(address, &speed)) {
 		speed -= 77;
 		if (speed > 32767) {
 			speed = 0;
 		}
-		
+
 	    return setLocoSpeed(address, speed);
 	}
-	
+
 	return false;
 }
 
@@ -538,7 +538,7 @@ boolean TrackController::toggleLocoFunction(word address, byte function) {
     if (getLocoFunction(address, function, &power)) {
     	return setLocoFunction(address, function, power ? 0 : 1);
     }
-    
+
     return false;
 }
 
@@ -558,7 +558,7 @@ boolean TrackController::setAccessory(word address, byte position, byte power,
 
 	if (time != 0) {
 		delay(time);
-		
+
 		message.clear();
 		message.command = 0x0b;
 		message.length = 0x06;
@@ -568,7 +568,7 @@ boolean TrackController::setAccessory(word address, byte position, byte power,
 
 		exchangeMessage(message, message, 1000);
 	}
-	
+
 	return true;
 }
 
@@ -686,7 +686,7 @@ boolean TrackController::getVersion(byte *high, byte *low) {
     boolean result = false;
 
     TrackMessage message;
-    
+
     message.clear();
     message.command = 0x18;
 
@@ -701,7 +701,7 @@ boolean TrackController::getVersion(byte *high, byte *low) {
             result = true;
         }
     }
-    
+
     return result;
 }
 
@@ -741,16 +741,16 @@ TrackControllerInfrared::TrackControllerInfrared() {
 }
 
     /**
-     * Initialization code moved here 
+     * Initialization code moved here
      */
 void TrackControllerInfrared::start() {
-  
+
   for (int i = 0; i < 2; i++) {
     for (int j = 1; j <= 4; j++) {
       toggleLocoDirection(j);
     }
   }
-  setPower(false);  
+  setPower(false);
 }
 
     /**
@@ -764,20 +764,20 @@ boolean TrackControllerInfrared::sendRaw(unsigned long data, int nbits) {
 boolean TrackControllerInfrared::sendMessage(word address, word command) {
 	if (mPower) {
 		int transmission = (address << 6) | (command & 0x3f);
-		
+
 		if (command >= 0x40) {
 			sendRC5(mToggle | transmission, 12, true);
 		} else {
 			sendRC5(mToggle | transmission, 12, false);
 		}
-		
+
 		mToggle ^= 1 << 11;
-		
+
 		delay(50);
-		
+
 		return true;
 	}
-	
+
 	return false;
 }
 
@@ -785,7 +785,7 @@ boolean TrackControllerInfrared::accelerateLoco(int loco) {
 	if (loco >= 1 && loco <= 4) {
 		return sendMessage(locoBits[loco - 1], CMD_FASTER);
 	}
-	
+
 	return false;
 }
 
@@ -793,7 +793,7 @@ boolean TrackControllerInfrared::decelerateLoco(int loco) {
 	if (loco >= 1 && loco <= 4) {
 		return sendMessage(locoBits[loco - 1], CMD_SLOWER);
 	}
-	
+
 	return false;
 }
 
@@ -801,7 +801,7 @@ boolean TrackControllerInfrared::toggleLocoDirection(int loco) {
 	if (loco >= 1 && loco <= 4) {
 		return sendMessage(locoBits[loco - 1], CMD_DIRECTION);
 	}
-	
+
 	return false;
 }
 
@@ -809,7 +809,7 @@ boolean TrackControllerInfrared::toggleLocoFunction(int loco, int function) {
 	if (loco >= 1 && loco <= 4 && function >= 0 && function <= 8) {
 		return sendMessage(locoBits[loco - 1], CMD_FUNCTION | function);
 	}
-	
+
 	return false;
 }
 
@@ -825,10 +825,10 @@ boolean TrackControllerInfrared::setPower(boolean power) {
 		mPower = true;
 		sendMessage(ADDR_LOCO_1, power ? CMD_POWER_ON : CMD_POWER_OFF);
 		mPower = power;
-		
+
 		return true;
 	}
-	
+
 	return false;
 }
 
@@ -857,7 +857,7 @@ const int TIME = 50;
 
 TrackReporterS88::TrackReporterS88(int modules) {
 	mSize = modules;
-	
+
 	// pinMode(DATA, INPUT);
 	pinMode(CLOCK, OUTPUT);
 	pinMode(LOAD, OUTPUT);
@@ -968,7 +968,7 @@ void handleInterrupt0() {
   for (int i = 0; i < ioxCount; i++) {
     ioxSwitches[2 * i] = readRegister(i, 9);
     ioxSwitches[2 * i + 1] = readRegister(16 + i, 9);
-    
+
     ioxSwitches2[2 * i] |= ioxSwitches[2 * i];
     ioxSwitches2[2 * i + 1] |= ioxSwitches[2 * i + 1];
   }
@@ -983,9 +983,9 @@ TrackReporterIOX::TrackReporterIOX(int modules) {
 
   digitalWrite(6, HIGH);
   pinMode(6, OUTPUT);
-  
+
   SPI_begin();
-  
+
   noInterrupts();
   for (int i = 0; i < mCount; i++) {
     writeRegister(i, 5, 76);   // Open drain, banks in case of 16 bit
@@ -993,7 +993,7 @@ TrackReporterIOX::TrackReporterIOX(int modules) {
     for (int j = 0; j <= 16; j += 16) {
       writeRegister(i, j + 0, 255); // IODIR: All GPIOs are inputs
       writeRegister(i, j + 1, 255); // IOPOL: GND means locial 1
-      writeRegister(i, j + 2, 255); // GPINTEN: All interrupts enabled 
+      writeRegister(i, j + 2, 255); // GPINTEN: All interrupts enabled
       writeRegister(i, j + 3, 0);   // DEFVAL: Compare default value
       //writeRegister(i, j + 4, 255); // INTCON: Compare against default value
       writeRegister(i, j + 6, 255); // Pull-up resistors
