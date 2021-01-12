@@ -4,58 +4,32 @@
 // Stripped down to my needs 2021 mlo
 
 #include "IRsend.h"
-#ifndef UNIT_TEST
 #include <Arduino.h>
-#else
-#define __STDC_LIMIT_MACROS
-#include <stdint.h>
-#endif
 #include <algorithm>
-#ifdef UNIT_TEST
-#include <cmath>
-#endif
 #include "IRtimer.h"
 
-/// Constructor for an IRsend object.
-/// @param[in] IRsendPin Which GPIO pin to use when sending an IR command.
-/// @param[in] inverted Optional flag to invert the output. (default = false)
-///  e.g. LED is illuminated when GPIO is LOW rather than HIGH.
-/// @warning Setting `inverted` to something other than the default could
-///  easily destroy your IR LED if you are overdriving it.
-///  Unless you *REALLY* know what you are doing, don't change this.
-/// @param[in] use_modulation Do we do frequency modulation during transmission?
-///  i.e. If not, assume a 100% duty cycle. Ignore attempts to change the
-///  duty cycle etc.
-IRsend::IRsend(uint16_t IRsendPin, bool inverted, bool use_modulation)
-    : IRpin(IRsendPin), periodOffset(kPeriodOffset) {
-  if (inverted) {
-    outputOn = LOW;
-    outputOff = HIGH;
-  } else {
+#define IRPIN 3
+
+void enableIROut(int khz) {
+  // Enables IR output.  The khz value controls the modulation frequency in kilohertz.
+  // The IR output will be on pin 3 (OC2B).
+  // This routine is designed for 36-40KHz; if you use it for other values, it's up to you
+  // to make sure it gives reasonable results.  (Watch out for overflow / underflow / rounding.)
+  // TIMER2 is used in phase-correct PWM mode, with OCR2A controlling the frequency and OCR2B
+  // controlling the duty cycle.
+  // There is no prescaling, so the output frequency is 16MHz / (2 * OCR2A)
+  // To turn the output on and off, we leave the PWM running, but connect and disconnect the output pin.
+  // A few hours staring at the ATmega documentation and this will all make sense.
+  // See my Secrets of Arduino PWM at http://arcfn.com/2009/07/secrets-of-arduino-pwm.html for details.
+/// Enable the pin for output.
+  pinMode(IRPIN, OUTPUT);
+/// Turn off the IR LED.
+  digitalWrite(IRPIN, outputOff);
     outputOn = HIGH;
     outputOff = LOW;
-  }
-  modulation = use_modulation;
-  if (modulation)
-    _dutycycle = kDutyDefault;
-  else
     _dutycycle = kDutyMax;
 }
 
-/// Enable the pin for output.
-void IRsend::begin() {
-#ifndef UNIT_TEST
-  pinMode(IRpin, OUTPUT);
-#endif
-  ledOff();  // Ensure the LED is in a known safe state when we start.
-}
-
-/// Turn off the IR LED.
-void IRsend::ledOff() {
-#ifndef UNIT_TEST
-  digitalWrite(IRpin, outputOff);
-#endif
-}
 
 /// Turn on the IR LED.
 void IRsend::ledOn() {
