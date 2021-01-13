@@ -2,7 +2,7 @@
  * Railuino - Hacking your Märklin
  *
  * Copyright (C) 2012 Joerg Pleumann
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
@@ -36,6 +36,9 @@
 #elif defined(ESP8266)
 #define __ESP__ 1
 #define __BOARD__ "NodeMCU ESP8266"
+#elif defined(ESP32)
+#define __ESP__ 1
+#define __BOARD__ "ESP32 based"
 #else
 #error Unsupported board. Please adjust library.
 #endif
@@ -116,7 +119,7 @@ class TrackMessage : public Printable {
    * The command number.
    */
   byte command;
-  
+
   /**
    * The hash that is used for avoiding device/message collisions.
    */
@@ -196,7 +199,7 @@ class TrackController {
 	 * incoming messages are printed to the Serial console.
 	 */
 	boolean mDebug;
-	
+
 	/**
 	 * Holds the loopback flag. When loopback is on, messages are
 	 * reflected by the CAN controller. No external communication
@@ -305,7 +308,7 @@ class TrackController {
      * reflects whether the call was successful.
      */
     boolean setPower(boolean power);
-    
+
     /**
      * Sets the direction of the given locomotive. Valid directions
      * are those specified by the DIR_* constants. The return value
@@ -318,7 +321,7 @@ class TrackController {
      * includes a full stop.
      */
     boolean toggleLocoDirection(word address);
-    
+
     /**
      * Sets the speed of the given locomotive. Valid speeds are
      * 0 to 1023 (inclusive), though the connector box will limit
@@ -348,14 +351,14 @@ class TrackController {
      * whether the call was successful.
      */
     boolean setLocoFunction(word address, byte function, byte power);
-    
+
     /**
      * Toggles the given function of the given locomotive. Valid
      * functions are 0 to 31, with 0 normally denoting the
      * head/backlight.
      */
     boolean toggleLocoFunction(word address, byte function);
-    
+
     /**
      * Switches the given magnetic accessory. Valid position values
      * are those denoted by the ACC_* constants. Valid power values
@@ -369,7 +372,7 @@ class TrackController {
      * whether the call was successful.
      */
     boolean setAccessory(word address, byte position, byte power, word time);
-    
+
     /**
      * Switches a turnout. This is actually a convenience function
      * around setAccessory() that uses default values for some
@@ -377,14 +380,14 @@ class TrackController {
      * successful.
      */
     boolean setTurnout(word address, boolean straight);
-    
+
     /**
      * Queries the direction of the given locomotive and writes it
      * into the referenced byte. The return value indicates whether
      * the call was successful and the direction is valid.
      */
     boolean getLocoDirection(word address, byte *direction);
-    
+
     /**
      * Queries the speed of the given locomotive and writes it
      * into the referenced byte. The return value indicates whether
@@ -400,7 +403,7 @@ class TrackController {
      * to the function, but only 0 ("off") or 1 ("on").
      */
     boolean getLocoFunction(word address, byte function, byte *power);
-    
+
     /**
      * Queries the given magnetic accessory's state and and writes
      * it into the referenced bytes. The return value indicates
@@ -423,17 +426,17 @@ class TrackController {
      * successful.
      */
     boolean writeConfig(word address, word number, byte value);
-    
+
     /**
      * Reads the given config number of the given locomotive into the
      * given value.
      */
     boolean readConfig(word address, word number, byte *value);
-    
+
     /**
      * Queries the software version of the track format processor.
      */
-    boolean getVersion(byte *high, byte *low); 
+    boolean getVersion(byte *high, byte *low);
 
 };
 
@@ -451,17 +454,17 @@ class TrackController {
 class TrackControllerInfrared {
 
     private:
-	
+
 	/**
 	 * Whether the power is on.
 	 */
 	boolean mPower;
-	
+
 	/**
 	 * The current value of the toggle bit (needed for RC5).
 	 */
 	word mToggle;
-	
+
     public:
 
 	/**
@@ -477,14 +480,14 @@ class TrackControllerInfrared {
     TrackControllerInfrared();
 
     /**
-     * Initialization code moved here 
+     * Initialization code moved here
      */
     void start();
 
     /**
      * Added for testing
      */
-    boolean TrackControllerInfrared::sendRaw(unsigned long data, int nbits);
+    boolean sendRaw(unsigned long data, int nbits);
 
     /**
      * Sends a message consisting of address and command (in the
@@ -503,14 +506,14 @@ class TrackControllerInfrared {
      * reflects whether the call was successful.
      */
     boolean setPower(boolean power);
-    
+
     /**
      * Toogles the direction of the given locomotive. This includes
      * a full stop of the locomotive. The return value reflects whether
      * the call was successful.
      */
     boolean toggleLocoDirection(int loco);
-    
+
     /**
      * Accelerates the given locomotive by 1 level on a scale assuming
      * a total of 14 speed levels. Does not have any effect if the
@@ -524,7 +527,7 @@ class TrackControllerInfrared {
      * maximum speed has already been reached.
      */
     boolean decelerateLoco(int loco);
-    
+
     /**
      * Toggles the given function of the given locomotive (or simply a
      * function decoder). Valid functions are 0 to 4, with 0 normally
@@ -532,7 +535,7 @@ class TrackControllerInfrared {
      * the call was successful.
      */
     boolean toggleLocoFunction(int loco, int function);
-    
+
     /**
      * Switches a turnout. The return value reflects whether the call
      * was successful.
@@ -570,7 +573,7 @@ class TrackReporterS88 {
 
   /**
    * The most recent contact values we know.
-   */ 
+   */
   byte mSwitches[64];
 
   public:
@@ -584,7 +587,7 @@ class TrackReporterS88 {
    * to do the math yourself.
    */
   TrackReporterS88(int modules);
-  
+
   /**
    * Reads the current state of all contacts into the TrackReporter
    * and clears the flip-flops on all S88 boards. Call this method
@@ -626,7 +629,7 @@ private:
 
   /**
    * The most recent contact values we know.
-   */ 
+   */
   byte mSwitches[16];
 
 public:
@@ -635,7 +638,7 @@ public:
    * Creates a new TrackReporter with the given number of expanders.
    */
   TrackReporterIOX(int modules);
-  
+
   /**
    * Is called when a TrackReporter is being destroyed. Does the
    * necessary cleanup. No need to call this manually.

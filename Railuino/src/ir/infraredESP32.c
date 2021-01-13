@@ -1,3 +1,4 @@
+#include "IRtimer.h"
 // ===================================================================
 // === Low-level IR stuff ============================================
 // ===================================================================
@@ -7,25 +8,115 @@
 * IRSend.cpp by David Conran
 * https://github.com/crankyoldgit/IRremoteESP8266
 */
-
+#define ESP32
 // From the datasheet
 // https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32_datasheet_en.pdf
 // CPU clock frequency is adjustable from 80 MHz to 240 MHz
 // Integrated crystal: 40 MHz crystal
 #define SYSCLOCK 40000000
+#define ALLOW_DELAY_CALLS true
+
 //#define RC5_T1      889
 //#define TOPBIT 0x80000000
 // Constants
 // RC-5/RC-5X
+
+const uint16_t kRC5RawBits = 14;
+const uint16_t kRC5Bits = kRC5RawBits - 2;
+
 const uint16_t kRc5T1 = 889;
 const uint32_t kRc5MinCommandLength = 113778;
 const uint32_t kRc5MinGap = kRc5MinCommandLength - kRC5RawBits * (2 * kRc5T1);
 const uint16_t kRc5ToggleMask = 0x800;  // The 12th bit.
 const uint16_t kRc5SamplesMin = 11;
 
+uint16_t onTimePeriod;
+uint16_t offTimePeriod;
+
+const uint16_t IRpin = 3;
+
+// Constants
+// Offset (in microseconds) to use in Period time calculations to account for
+// code excution time in producing the software PWM signal.
+#if defined(ESP32)
+// Calculated on a generic ESP-WROOM-32 board with v3.2-18 SDK @ 240MHz
+const int8_t kPeriodOffset = -2;
+#elif (defined(ESP8266) && F_CPU == 160000000L)  // NOLINT(whitespace/parens)
+// Calculated on an ESP8266 NodeMCU v2 board using:
+// v2.6.0 with v2.5.2 ESP core @ 160MHz
+const int8_t kPeriodOffset = -2;
+#else  // (defined(ESP8266) && F_CPU == 160000000L)
+// Calculated on ESP8266 Wemos D1 mini using v2.4.1 with v2.4.0 ESP core @ 40MHz
+const int8_t kPeriodOffset = -5;
+#endif  // (defined(ESP8266) && F_CPU == 160000000L)
+
+const uint8_t kDutyDefault = 50;  // Percentage
+const uint8_t kDutyMax = 100;     // Percentage
+// delayMicroseconds() is only accurate to 16383us.
+// Ref: https://www.arduino.cc/en/Reference/delayMicroseconds
+const uint16_t kMaxAccurateUsecDelay = 16383;
+//  Usecs to wait between messages we don't know the proper gap time.
+const uint32_t kDefaultMessageGap = 100000;
+
+
 // Common (getRClevel())
 const int16_t kMark = 0;
 const int16_t kSpace = 1;
+
+const int8_t outputOn = HIGH;
+const int8_t outputOff = LOW;
+
+uint8_t _dutycycle;
+
+boolean modulation = false;
+
+
+#if ALLOW_DELAY_CALLS
+/// An ESP8266 RTOS watch-dog timer friendly version of delayMicroseconds().
+/// @param[in] usec Nr. of uSeconds to delay for.
+void _delayMicroseconds(uint32_t usec) {
+    // delayMicroseconds() is only accurate to 16383us.
+    // Ref: https://www.arduino.cc/en/Reference/delayMicroseconds
+    if (usec <= kMaxAccurateUsecDelay) {
+        delayMicroseconds(usec);
+    } else {
+        // Invoke a delay(), where possible, to avoid triggering the WDT.
+        delay(usec / 1000UL);  // Delay for as many whole milliseconds as we can.
+        // Delay the remaining sub-millisecond.
+        delayMicroseconds(static_cast<uint16_t>(usec % 1000UL));
+    }
+}
+#else  // ALLOW_DELAY_CALLS
+/// A version of delayMicroseconds() that handles large values and does NOT use
+/// the watch-dog friendly delay() calls where appropriate.
+/// @note Use this only if you know what you are doing as it may cause the WDT
+///  to reset the ESP8266.
+void _delayMicroseconds(uint32_t usec) {
+    for (; usec > kMaxAccurateUsecDelay; usec -= kMaxAccurateUsecDelay)
+    delayMicroseconds(kMaxAccurateUsecDelay);
+    delayMicroseconds(static_cast<uint16_t>(usec));
+}
+#endif  // ALLOW_DELAY_CALLS
+
+
+/// Turn off the IR LED.
+void ledOff() {
+    digitalWrite(IRpin, outputOff);
+}
+
+/// Turn on the IR LED.
+void ledOn() {
+    digitalWrite(IRpin, outputOn);
+}
+
+void initIR() {
+    if (modulation)
+    _dutycycle = kDutyDefault;
+    else
+    _dutycycle = kDutyMax;
+    pinMode(IRpin, OUTPUT);
+    ledOff();  // Ensure the LED is in a known safe state when we start.
+}
 
 // Modulate the IR LED for the given period (usec) and at the duty cycle set.
 /// @param[in] usec The period of time to modulate the IR LED for, in
@@ -46,7 +137,7 @@ void mark(uint16_t usec) {
         ledOn();
         _delayMicroseconds(usec);
         ledOff();
-        return 1;
+        //        return 1;
     }
 
     // I have no idea (yet) if we will need frequency modulation, so I assume, we do.
@@ -66,13 +157,13 @@ void mark(uint16_t usec) {
     ledOff();
     counter++;
     if (elapsed + onTimePeriod >= usec)
-    return counter;  // LED is now off & we've passed our allotted time.
+    //    return counter;  // LED is now off & we've passed our allotted time.
     // Wait for the lesser of the rest of the duty cycle, or the time remaining.
     _delayMicroseconds(
         std::min(usec - elapsed - onTimePeriod, (uint32_t)offTimePeriod));
         elapsed = usecTimer.elapsed();  // Update & recache the actual elapsed time.
     }
-    return counter;
+    //    return counter;
 }
 
 /// Turn the pin (LED) off for a given time.
@@ -85,6 +176,22 @@ void space(uint32_t time) {
     _delayMicroseconds(time);
 }
 
+
+/// Calculate the period for a given frequency.
+/// @param[in] hz Frequency in Hz.
+/// @param[in] use_offset Should we use the calculated offset or not?
+/// @return nr. of uSeconds.
+/// @note (T = 1/f)
+uint32_t calcUSecPeriod(uint32_t hz) {
+    if (hz == 0) hz = 1;  // Avoid Zero hz. Divide by Zero is nasty.
+    uint32_t period =
+    (1000000UL + hz / 2) / hz;  // The equiv of round(1000000/hz).
+    // Apply the offset and ensure we don't result in a <= 0 value.
+    //  if (use_offset)
+    //    return std::max((uint32_t)1, period + periodOffset);
+    //  else
+    return std::max((uint32_t)1, period);
+}
 
 /// Set the output frequency modulation and duty cycle.
 /// @param[in] freq The freq we want to modulate at.
@@ -161,44 +268,48 @@ void enableIROut(uint32_t khz) {
 ///   For RC-5X it is the 2nd MSB of the data.
 /// @todo Testing of the RC-5X components.
 void sendRC5(const uint64_t data, uint16_t nbits, bool extended) {
-  if (nbits > sizeof(data) * 8) return;  // We can't send something that big.
-  bool skipSpace = true;
-  bool field_bit = true;
-  // Set 36kHz IR carrier frequency & a 1/4 (25%) duty cycle.
-  enableIROut(36);
+    uint64_t sdata = data;
+    if (nbits > sizeof(sdata) * 8) return;  // We can't send something that big.
+    bool skipSpace = true;
+    bool field_bit = true;
+    // Set 36kHz IR carrier frequency & a 1/4 (25%) duty cycle.
+    enableIROut(36);
 
-    data = data << (32 - nbits);
+    // Binary Left Shift Operator.
+    // The left operands value is moved left
+    // by the number of bits specified by the right operand.
+    sdata = sdata << (32 - nbits);
 
-  IRtimer usecTimer = IRtimer();
-  for (uint16_t i = 0; i <= repeat; i++) {
-    usecTimer.reset();
+    IRtimer usecTimer = IRtimer();
+//    for (uint16_t i = 0; i <= repeat; i++) {
+        usecTimer.reset();
 
-    // Header
-    // First start bit (0x1). space, then mark.
-    if (skipSpace)
-      skipSpace = false;  // First time through, we assume the leading space().
-    else
-      space(kRc5T1);
-    mark(kRc5T1);
-    // Field/Second start bit.
-    if (field_bit) {  // Send a 1. Normal for RC-5.
-      space(kRc5T1);
-      mark(kRc5T1);
-    } else {  // Send a 0. Special case for RC-5X. Means 7th command bit is 1.
-      mark(kRc5T1);
-      space(kRc5T1);
-    }
-
-    // Data
-    for (uint64_t mask = 1ULL << (nbits - 1); mask; mask >>= 1)
-      if (data & mask) {  // 1
-        space(kRc5T1);    // 1 is space, then mark.
-        mark(kRc5T1);
-      } else {         // 0
-        mark(kRc5T1);  // 0 is mark, then space.
+        // Header
+        // First start bit (0x1). space, then mark.
+        if (skipSpace)
+        skipSpace = false;  // First time through, we assume the leading space().
+        else
         space(kRc5T1);
-      }
-    // Footer
-    space(std::max(kRc5MinGap, kRc5MinCommandLength - usecTimer.elapsed()));
-  }
+        mark(kRc5T1);
+        // Field/Second start bit.
+        if (field_bit) {  // Send a 1. Normal for RC-5.
+            space(kRc5T1);
+            mark(kRc5T1);
+        } else {  // Send a 0. Special case for RC-5X. Means 7th command bit is 1.
+            mark(kRc5T1);
+            space(kRc5T1);
+        }
+
+        // Data
+        for (uint64_t mask = 1ULL << (nbits - 1); mask; mask >>= 1)
+        if (sdata & mask) {  // 1
+            space(kRc5T1);    // 1 is space, then mark.
+            mark(kRc5T1);
+        } else {         // 0
+            mark(kRc5T1);  // 0 is mark, then space.
+            space(kRc5T1);
+        }
+        // Footer
+        space(std::max(kRc5MinGap, kRc5MinCommandLength - usecTimer.elapsed()));
+//    }
 }
