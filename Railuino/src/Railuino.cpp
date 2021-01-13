@@ -28,7 +28,7 @@
 // #include "canbus/canbus.c"
 #if defined(__ESP__)
 #define __NOCAN__ 1
-#error Can-Bus not supported for ESP-Boards
+// Can-Bus not supported for ESP-Boards
 #else
 #include "can/mcp2515.h"
 #include "can/mcp2515.c"

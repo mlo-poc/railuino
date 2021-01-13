@@ -1,4 +1,4 @@
-#include "IRtimer.h"
+#include "IRtimer.cpp"
 // ===================================================================
 // === Low-level IR stuff ============================================
 // ===================================================================
@@ -33,7 +33,11 @@ const uint16_t kRc5SamplesMin = 11;
 uint16_t onTimePeriod;
 uint16_t offTimePeriod;
 
+#if defined(ESP32)
+const uint16_t IRpin = 32;
+#else
 const uint16_t IRpin = 3;
+#endif
 
 // Constants
 // Offset (in microseconds) to use in Period time calculations to account for
