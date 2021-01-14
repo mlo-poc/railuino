@@ -34,7 +34,7 @@ uint16_t onTimePeriod;
 uint16_t offTimePeriod;
 
 #if defined(ESP32)
-const uint16_t IRpin = 32;
+const uint16_t IRpin = 2;
 #else
 const uint16_t IRpin = 3;
 #endif
